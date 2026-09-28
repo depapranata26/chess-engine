@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Jewel Chess Engine</title>
+<meta name="theme-color" content="#0f1420">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<style>
+:root{
+  --bg:#0f1420; --card:#18202f; --line:#2b3a55; --txt:#eef2f7; --dim:#93a1b8;
+  --acc:#e8b64c; --sqL:#ecdcb9; --sqD:#a5714f; --good:#3ecf8e; --bad:#ff5d5d;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  height:100dvh;display:flex;flex-direction:column;overflow:hidden;user-select:none;}
+header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;border-bottom:1px solid var(--line);background:#121a2a;}
+header .ttl{font-weight:800;font-size:15px;letter-spacing:.5px;}
+header .ttl b{color:var(--acc);}
+#status{font-size:12px;color:var(--dim);}
+#status.hot{color:var(--acc);font-weight:700;}
+#stage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:6px 8px;}
+#boardRow{display:flex;align-items:stretch;gap:8px;}
+#evalWrap{display:flex;flex-direction:column;align-items:center;gap:2px;}
+#evalbar{flex:1;width:20px;background:#2a2a2a;border:1px solid var(--line);border-radius:6px;position:relative;overflow:hidden;min-height:80px;}
+#evalfill{position:absolute;bottom:0;left:0;right:0;height:50%;background:#f2f2f2;transition:height .35s ease;}
+#evalnum{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums;writing-mode:horizontal-tb;}
+#board{width:min(88vw,54dvh,400px);aspect-ratio:1/1;display:grid;grid-template-columns:repeat(8,1fr);
+  grid-template-rows:repeat(8,1fr);border-radius:10px;overflow:hidden;position:relative;
+  border:2px solid var(--line);box-shadow:0 8px 30px rgba(0,0,0,.45);touch-action:manipulation;}
+.sq{display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;
+  font-size:clamp(22px,7.6vw,40px);line-height:1;}
+.sq.l{background:var(--sqL);} .sq.d{background:var(--sqD);}
+.sq .pc{pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));}
+.sq .pc.w{color:#fafafa;text-shadow:0 0 2px #000,0 0 3px #000;}
+.sq .pc.b{color:#151515;text-shadow:0 0 2px #fff,0 0 3px rgba(255,255,255,.7);}
+.sq.sel{outline:3px solid var(--acc);outline-offset:-3px;}
+.sq.last{background-blend-mode:multiply;background-color:#f7e26b !important;}
+.sq.last.l{background:#f5e6a8;} .sq.last.d{background:#d9b84a;}
+.sq.check{box-shadow:inset 0 0 0 4px var(--bad);}
+.sq .dot{position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(20,60,20,.35);pointer-events:none;}
+.sq .cap{position:absolute;inset:6%;border-radius:50%;border:4px solid rgba(20,60,20,.35);pointer-events:none;}
+#arrowSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;}
+#engine{flex:0 0 auto;width:min(96vw,430px);background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:8px 10px;}
+#engTop{display:flex;align-items:center;gap:8px;}
+#evalBig{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;min-width:74px;}
+#evalBig.pos{color:var(--good);} #evalBig.neg{color:var(--bad);}
+#bestMove{flex:1;font-size:15px;font-weight:700;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#think{font-size:12px;color:var(--dim);}
+#think.on{color:var(--acc);animation:blink 1s infinite;}
+@keyframes blink{50%{opacity:.35;}}
+#pvList{margin-top:6px;display:flex;flex-direction:column;gap:3px;}
+.pvline{font-size:11.5px;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pvline b{color:var(--txt);}
+.pvline .pvev{color:var(--acc);font-weight:700;}
+#sideRow{display:flex;gap:6px;margin-top:8px;align-items:center;}
+.sideBtn{flex:1;padding:7px 0;border-radius:8px;border:1px solid var(--line);background:#101827;color:var(--dim);
+  font-size:13px;font-weight:700;cursor:pointer;}
+.sideBtn.onW{background:#f2f2f2;color:#111;border-color:#f2f2f2;}
+.sideBtn.onB{background:#222;color:#f2f2f2;border-color:#888;}
+#depthSel{background:#101827;color:var(--txt);border:1px solid var(--line);border-radius:8px;font-size:12px;padding:7px 4px;}
+#controls{flex:0 0 auto;display:flex;gap:8px;width:min(96vw,430px);}
+.cbtn{flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--line);background:var(--card);
+  color:var(--txt);font-size:13px;font-weight:700;cursor:pointer;}
+.cbtn:active{transform:scale(.97);}
+.cbtn.primary{background:var(--acc);border-color:var(--acc);color:#1a1206;}
+#histWrap{flex:0 0 auto;width:min(96vw,430px);max-height:64px;overflow-y:auto;background:#101827;
+  border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:12px;color:var(--dim);}
+#hist{font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.7;}
+#hist b{color:var(--txt);font-weight:600;}
+details#fenBox{flex:0 0 auto;width:min(96vw,430px);font-size:12px;color:var(--dim);}
+details#fenBox summary{cursor:pointer;padding:4px 0;}
+#fenRow{display:flex;gap:6px;margin-top:4px;}
+#fenIn{flex:1;background:#101827;border:1px solid var(--line);border-radius:8px;color:var(--txt);
+  font-size:11px;padding:8px;font-family:ui-monospace,monospace;}
+#promoOverlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50;}
+#promoBox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:10px;}
+#promoBox button{font-size:38px;background:#101827;border:1px solid var(--line);border-radius:10px;
+  width:64px;height:64px;cursor:pointer;color:var(--txt);}
+.hint{font-size:11px;color:var(--dim);text-align:center;}
+</style>
+</head>
+<body>
+<header>
+  <div class="ttl">♞ <b>JEWEL</b> CHESS ENGINE</div>
+  <div id="status">Siap</div>
+</header>
+
+<div id="stage">
+  <div id="boardRow">
+    <div id="evalWrap">
+      <div id="evalbar"><div id="evalfill"></div></div>
+      <div id="evalnum">0.0</div>
+    </div>
+    <div id="board"></div>
+  </div>
+  <div class="hint">Gerakkan bebas kedua warna — tap bidak, lalu tap kotak tujuan.</div>
+
+  <div id="engine">
+    <div id="engTop">
+      <div id="evalBig">0.0</div>
+      <div id="bestMove">—</div>
+      <div id="think"></div>
+    </div>
+    <div id="pvList"></div>
+    <div id="sideRow">
+      <button class="sideBtn onW" id="sideW">⚪ Putih jalan</button>
+      <button class="sideBtn" id="sideB">⚫ Hitam jalan</button>
+      <select id="depthSel" title="Kedalaman analisis">
+        <option value="12">D12 cepat</option>
+        <option value="16" selected>D16 standar</option>
+        <option value="20">D20 dalam</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button class="cbtn primary" id="btnAnalyze">🔍 Analisis</button>
+    <button class="cbtn" id="btnUndo">↩ Undo</button>
+    <button class="cbtn" id="btnFlip">🔄 Balik</button>
+    <button class="cbtn" id="btnReset">🗑 Reset</button>
+  </div>
+
+  <div id="histWrap"><div id="hist"><i>Belum ada langkah.</i></div></div>
+
+  <details id="fenBox">
+    <summary>⚙ Muat posisi via FEN</summary>
+    <div id="fenRow">
+      <input id="fenIn" placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
+      <button class="cbtn" id="btnFen" style="flex:0 0 70px;">Muat</button>
+    </div>
+  </details>
+</div>
+
+<div id="promoOverlay"><div id="promoBox"></div></div>
+
+<script>
+"use strict";
+/* ================= STATE ================= */
+const game = new Chess();
+let selected = null;          // square "e2"
+let legalCache = [];          // verbose moves for selected
+let analysisSide = 'w';       // warna yang dianalisis engine
+let flipped = false;
+let depth = 16;
+
+/* ================= BOARD RENDER ================= */
+const boardEl = document.getElementById('board');
+const squares = {};
+(function buildBoard(){
+  for(let r=0;r<8;r++) for(let f=0;f<8;f++){
+    const d=document.createElement('div');
+    d.className='sq '+(((r+f)%2===0)?'l':'d');
+    d.dataset.r=r; d.dataset.f=f;
+    d.addEventListener('click', onTap);
+    boardEl.appendChild(d);
+  }
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.id='arrowSvg'; svg.setAttribute('viewBox','0 0 8 8');
+  boardEl.appendChild(svg);
+})();
+function sqName(r,f){ // r:0=top
+  const file = flipped ? 7-f : f;
+  const rank = flipped ? r+1 : 8-r;
+  return 'abcdefgh'[file]+rank;
+}
+function xyOf(sq){
+  const file=sq.charCodeAt(0)-97, rank=parseInt(sq[1],10);
+  const x = flipped ? 7-file : file;
+  const y = flipped ? rank-1 : 8-rank;
+  return {x:x+0.5, y:y+0.5};
+}
+function render(){
+  const last = lastMoveSquares();
+  const inChk = game.in_check();
+  const ksq = inChk ? kingSquare(game.turn()) : null;
+  document.querySelectorAll('#board .sq').forEach(d=>{
+    const r=+d.dataset.r, f=+d.dataset.f, sq=sqName(r,f);
+    d.classList.remove('sel','last','check');
+    d.querySelectorAll('.dot,.cap').forEach(n=>n.remove());
+    if(last.includes(sq)) d.classList.add('last');
+    if(sq===ksq) d.classList.add('check');
+    if(sq===selected) d.classList.add('sel');
+    const p=game.get(sq);
+    d.innerHTML = p ? `<span class="pc ${p.color}">${glyph(p)}</span>` : '';
+  });
+  // dot/cap di kotak tujuan
+  if(selected){
+    document.querySelectorAll('#board .sq').forEach(d=>{
+      const sq=sqName(+d.dataset.r,+d.dataset.f);
+      const m=legalCache.find(m=>m.to===sq);
+      if(m){ const mark=document.createElement('div');
+        mark.className = game.get(sq) ? 'cap':'dot'; d.appendChild(mark); }
+    });
+  }
+  renderHist(); renderSide(); updateStatus();
+}
+function glyph(p){
+  const g={k:{w:'♚',b:'♚'},q:{w:'♛',b:'♛'},r:{w:'♜',b:'♜'},b:{w:'♝',b:'♝'},n:{w:'♞',b:'♞'},p:{w:'♟',b:'♟'}};
+  return g[p.type][p.color];
+}
+function lastMoveSquares(){
+  const h=game.history({verbose:true});
+  if(!h.length) return [];
+  return [h[h.length-1].from, h[h.length-1].to];
+}
+function kingSquare(color){
+  const b=game.board();
+  for(const row of b) for(const c of row)
+    if(c && c.type==='k' && c.color===color) return c.square;
+  return null;
+}
+function renderHist(){
+  const h=game.history();
+  const el=document.getElementById('hist');
+  if(!h.length){ el.innerHTML='<i>Belum ada langkah.</i>'; return; }
+  let s='';
+  for(let i=0;i<h.length;i+=2)
+    s+=`<b>${i/2+1}.</b> ${h[i]}${h[i+1]?' '+h[i+1]:''} `;
+  el.innerHTML=s.trim();
+  document.getElementById('histWrap').scrollTop=1e6;
+}
+function renderSide(){
+  document.getElementById('sideW').className='sideBtn'+(analysisSide==='w'?' onW':'');
+  document.getElementById('sideB').className='sideBtn'+(analysisSide==='b'?' onB':'');
+}
+function updateStatus(){
+  const st=document.getElementById('status');
+  st.classList.remove('hot');
+  if(game.in_checkmate()){ st.textContent='🏆 Skakmat! '+(game.turn()==='w'?'Hitam':'Putih')+' menang'; st.classList.add('hot'); }
+  else if(game.in_stalemate()) st.textContent='🤝 Remis — stalemate';
+  else if(game.in_draw()) st.textContent='🤝 Remis';
+  else if(game.in_check()){ st.textContent='⚠️ Skak!'; st.classList.add('hot'); }
+  else st.textContent = analyzing ? 'Engine berpikir…' : 'Siap';
+}
+
+/* ================= MOVE LOGIC (bebas 2 warna) ================= */
+function fenFor(color){ // FEN dgn giliran=color (ep dibersihkan)
+  const p=game.fen().split(' '); p[1]=color; p[3]='-'; return p.join(' ');
+}
+function legalMovesFor(sq){
+  const p=game.get(sq); if(!p) return [];
+  const c=new Chess(game.fen());
+  if(c.turn()!==p.color){ if(!c.load(fenFor(p.color))) return []; }
+  return c.moves({square:sq, verbose:true});
+}
+function needsPromo(from,to){
+  const p=game.get(from);
+  if(!p||p.type!=='p') return false;
+  const r=to[1];
+  return (p.color==='w'&&r==='8')||(p.color==='b'&&r==='1');
+}
+function doMove(from,to,promo){
+  const p=game.get(from); if(!p) return false;
+  if(game.turn()!==p.color){ if(!game.load(fenFor(p.color))) return false; }
+  const mv=game.move({from,to,promotion:promo||'q'});
+  if(!mv) return false;
+  analysisSide = p.color==='w' ? 'b':'w';
+  selected=null; legalCache=[];
+  render(); scheduleAnalyze();
+  return true;
+}
+function onTap(e){
+  const sq=sqName(+e.currentTarget.dataset.r,+e.currentTarget.dataset.f);
+  if(selected){
+    const m=legalCache.find(m=>m.to===sq);
+    if(m){
+      if(needsPromo(selected,sq)) askPromo(selected,sq);
+      else doMove(selected,sq);
+      return;
+    }
+  }
+  const p=game.get(sq);
+  if(p){ selected=sq; legalCache=legalMovesFor(sq); }
+  else { selected=null; legalCache=[]; }
+  render();
+}
+function askPromo(from,to){
+  const color=game.get(from).color;
+  const box=document.getElementById('promoBox'); box.innerHTML='';
+  ['q','r','b','n'].forEach(t=>{
+    const b=document.createElement('button');
+    b.innerHTML=glyph({type:t,color});
+    b.style.color = color==='w' ? '#fafafa' : '#151515';
+    b.style.textShadow = color==='w' ? '0 0 2px #000' : '0 0 2px #fff';
+    box.appendChild(b);
+  });
+  document.getElementById('promoOverlay').style.display='flex';
+  box.querySelectorAll('button').forEach((b,i)=>{
+    b.onclick=()=>{ document.getElementById('promoOverlay').style.display='none';
+      doMove(from,to,['q','r','b','n'][i]); };
+  });
+}
+/* ================= STOCKFISH ENGINE ================= */
+const SF_URL='https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+let engine=null, engReady=false, analyzing=false, pvResults={};
+let schedT=null;
+
+function engineFen(){ // FEN dgn giliran = warna yg dianalisis
+  const p=game.fen().split(' '); p[1]=analysisSide; p[3]='-'; return p.join(' ');
+}
+async function initEngine(){
+  setThink('Memuat engine…');
+  try{
+    const res=await fetch(SF_URL);
+    if(!res.ok) throw new Error('http '+res.status);
+    const code=await res.text();
+    engine=new Worker(URL.createObjectURL(new Blob([code],{type:'text/javascript'})));
+    engine.onmessage=onEngineMsg;
+    engine.onerror=()=>setThink('Engine gagal dimuat');
+    engine.postMessage('uci');
+  }catch(e){ setThink('Butuh internet 1x untuk unduh engine'); }
+}
+function onEngineMsg(e){
+  const line=String(e.data);
+  if(line==='uciok'){
+    engine.postMessage('setoption name MultiPV value 3');
+    engine.postMessage('isready');
+  }else if(line==='readyok'){
+    engReady=true; setThink(''); analyzeBtnUI();
+    scheduleAnalyze();
+  }else if(line.indexOf('info ')===0 && line.indexOf(' score ')>=0){
+    parseInfo(line);
+  }else if(line.indexOf('bestmove')===0){
+    analyzing=false; setThink(''); analyzeBtnUI();
+    renderEngine(); updateStatus();
+  }
+}
+function parseInfo(line){
+  const m=line.match(/depth (\d+).*?multipv (\d+) score (cp|mate) (-?\d+).*? pv ((?:[a-h][1-8][a-h][1-8][qrbn]?\s*)+)/);
+  if(!m) return;
+  pvResults[+m[2]]={depth:+m[1], type:m[3], val:+m[4], pv:m[5].trim().split(/\s+/).slice(0,10)};
+  renderEngine();
+}
+function analyze(){
+  if(!engReady||!engine){ setThink(engReady?'':'Engine belum siap'); return; }
+  stopEngine();
+  pvResults={};
+  analyzing=true; setThink('berpikir…'); analyzeBtnUI(); updateStatus();
+  document.getElementById('bestMove').textContent='…';
+  document.getElementById('pvList').innerHTML='';
+  document.getElementById('arrowSvg').innerHTML='';
+  engine.postMessage('position fen '+engineFen());
+  engine.postMessage('go depth '+depth);
+}
+function stopEngine(){
+  if(engine&&analyzing){ try{engine.postMessage('stop');}catch(e){} }
+  analyzing=false; setThink(''); analyzeBtnUI();
+}
+function scheduleAnalyze(){
+  clearTimeout(schedT);
+  schedT=setTimeout(()=>{ if(engReady) analyze(); },400);
+}
+function setThink(t){
+  const el=document.getElementById('think');
+  el.textContent=t;
+  el.classList.toggle('on',!!t);
+}
+function analyzeBtnUI(){
+  document.getElementById('btnAnalyze').textContent = analyzing ? '⏹ Stop' : '🔍 Analisis';
+}
+/* ---- skor: cp dari sudut pandang analysisSide -> konversi putih ---- */
+function whiteCp(r){
+  let v = r.type==='mate' ? (r.val>0?100000:-100000) : r.val;
+  if(analysisSide==='b') v=-v;
+  return v;
+}
+function fmtScore(r){
+  const w=whiteCp(r);
+  if(r.type==='mate') return (w>0?'':'-')+'#'+r.val;
+  const v=(w/100);
+  return (v>0?'+':'')+v.toFixed(2).replace('-0.00','0.00');
+}
+function sanOf(fen,uci){
+  try{ const c=new Chess(fen); const m=c.move(uci,{sloppy:true}); return m?m.san:uci; }
+  catch(e){ return uci; }
+}
+function pvSans(fen,pvArr){
+  try{
+    const c=new Chess(fen), out=[];
+    for(const u of pvArr.slice(0,7)){ const m=c.move(u,{sloppy:true}); if(!m) break; out.push(m.san); }
+    return out.join(' ');
+  }catch(e){ return pvArr.join(' '); }
+}
+function setEval(r){
+  const w=whiteCp(r);
+  const big=document.getElementById('evalBig');
+  big.textContent=fmtScore(r);
+  big.className = w>0?'pos':(w<0?'neg':'');
+  big.id='evalBig';
+  const pct = r.type==='mate' ? (w>0?100:0) : (50 + Math.max(-600,Math.min(600,w))/12);
+  document.getElementById('evalfill').style.height=pct+'%';
+  document.getElementById('evalnum').textContent=fmtScore(r);
+}
+function renderEngine(){
+  const r1=pvResults[1];
+  const svg=document.getElementById('arrowSvg'); svg.innerHTML='';
+  if(!r1) return;
+  setEval(r1);
+  const uci=r1.pv[0], from=uci.slice(0,2), to=uci.slice(2,4);
+  drawArrow(from,to);
+  document.getElementById('bestMove').textContent=
+    (analysisSide==='w'?'⚪ ':'⚫ ')+sanOf(engineFen(),uci);
+  const pl=document.getElementById('pvList'); pl.innerHTML='';
+  [1,2,3].forEach(i=>{
+    const r=pvResults[i]; if(!r||!r.pv.length) return;
+    const row=document.createElement('div'); row.className='pvline';
+    const b=document.createElement('b'); b.textContent=i+'. ';
+    const ev=document.createElement('span'); ev.className='pvev'; ev.textContent=fmtScore(r)+' ';
+    row.appendChild(b); row.appendChild(ev);
+    row.appendChild(document.createTextNode(pvSans(engineFen(),r.pv)));
+    pl.appendChild(row);
+  });
+}
+function drawArrow(from,to){
+  const a=xyOf(from), b=xyOf(to);
+  const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+  const ux=dx/len, uy=dy/len;
+  const svg=document.getElementById('arrowSvg');
+  svg.innerHTML=
+   `<defs><marker id="ah" markerWidth="3.4" markerHeight="3.4" refX="1.8" refY="1.7" orient="auto">`+
+   `<path d="M0,0 L3.4,1.7 L0,3.4 z" fill="rgba(232,182,76,.95)"/></marker></defs>`+
+   `<line x1="${(a.x+ux*0.22).toFixed(2)}" y1="${(a.y+uy*0.22).toFixed(2)}" `+
+   `x2="${(b.x-ux*0.34).toFixed(2)}" y2="${(b.y-uy*0.34).toFixed(2)}" `+
+   `stroke="rgba(232,182,76,.92)" stroke-width="0.2" stroke-linecap="round" marker-end="url(#ah)"/>`;
+}
+/* ================= CONTROLS ================= */
+function clearAnalysis(){
+  stopEngine(); pvResults={};
+  document.getElementById('arrowSvg').innerHTML='';
+  document.getElementById('pvList').innerHTML='';
+  document.getElementById('bestMove').textContent='—';
+  document.getElementById('evalBig').textContent='0.0';
+  document.getElementById('evalBig').className='';
+  document.getElementById('evalfill').style.height='50%';
+  document.getElementById('evalnum').textContent='0.0';
+}
+document.getElementById('btnAnalyze').onclick=()=>{ analyzing?stopEngine():analyze(); };
+document.getElementById('btnUndo').onclick=()=>{
+  clearAnalysis();
+  game.undo();
+  analysisSide=game.turn();
+  selected=null; legalCache=[];
+  render(); scheduleAnalyze();
+};
+document.getElementById('btnFlip').onclick=()=>{ flipped=!flipped; render(); renderEngine(); };
+document.getElementById('btnReset').onclick=()=>{
+  clearAnalysis();
+  game.reset(); analysisSide='w'; selected=null; legalCache=[];
+  render(); scheduleAnalyze();
+};
+document.getElementById('sideW').onclick=()=>{ analysisSide='w'; renderSide(); analyze(); };
+document.getElementById('sideB').onclick=()=>{ analysisSide='b'; renderSide(); analyze(); };
+document.getElementById('depthSel').onchange=e=>{ depth=+e.target.value; analyze(); };
+document.getElementById('btnFen').onclick=()=>{
+  const v=document.getElementById('fenIn').value.trim();
+  if(!v) return;
+  clearAnalysis();
+  if(game.load(v)){
+    analysisSide=game.turn(); selected=null; legalCache=[];
+    document.getElementById('fenIn').value='';
+    render(); scheduleAnalyze();
+  }else{
+    const st=document.getElementById('status');
+    st.textContent='❌ FEN tidak valid'; st.classList.add('hot');
+  }
+};
+/* ================= INIT ================= */
+render();
+initEngine();
+</script>
